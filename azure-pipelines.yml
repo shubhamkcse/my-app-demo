@@ -1,0 +1,34 @@
+trigger:
+- main
+
+pool:
+  name: 'Self-hosted pool'
+
+variables:
+  imageName: 'my-app'
+
+steps:
+- task: DockerInstaller@0
+  inputs:
+    dockerVersion: '26.1.4'
+
+- script: |
+    docker build -t $(imageName) .
+    docker tag $(imageName) shubhamkdev/$(imageName):$(Build.BuildId)
+    docker login -u $(dockerUsername) -p $(dockerPassword)
+    docker push shubhamkdev/$(imageName):$(Build.BuildId)
+  displayName: 'Build and Push Docker Image'
+
+- script: |
+    kubectl set image deployment/my-app-deployment my-app=shubhamkdev/$(imageName):$(Build.BuildId)
+  displayName: 'Deploy to Kubernetes'
+  env:
+    KUBECONFIG: $(kubeconfig)
+
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubeconfig'
+    kubeconfig: '$(kubeconfig)'
+    command: 'apply'
+    arguments: '-f deployment.yaml -f service.yaml'
+  displayName: 'Apply Kubernetes Manifests'
